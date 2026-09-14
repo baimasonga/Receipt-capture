@@ -70,8 +70,14 @@ jobs:
           fi
           npm run build
 
-      - name: 4. Sync Capacitor Android Project
+      - name: 4. Prepare Capacitor Android Platform
         run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          elif [ ! -f "android/gradlew" ]; then
+            rm -rf android
+            npx cap add android
+          fi
           npx cap sync android
 
       - name: 5. Set up Java JDK 21 (Temurin)
@@ -85,12 +91,19 @@ jobs:
         with:
           packages: 'platforms;android-36 build-tools;36.0.0'
 
-      - name: 7. Build Android APK with Gradle
+      - name: 7. Grant Execute Permission to Gradle Wrapper
+        run: |
+          if [ ! -f "android/gradlew" ]; then
+            (cd android && gradle wrapper) || true
+          fi
+          chmod +x android/gradlew
+
+      - name: 8. Build Android APK with Gradle
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
 
-      - name: 8. Upload APK Artifact to GitHub
+      - name: 9. Upload APK Artifact to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: UniAudit-Android-APK

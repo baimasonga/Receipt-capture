@@ -46,8 +46,25 @@ jobs:
         run: |
           npm run build
 
-      - name: 5. Sync Capacitor Android Platform
+      - name: 5. Prepare Capacitor Android Platform
         run: |
+          if [ ! -d "android" ]; then
+            echo "::notice::Android platform directory not detected in repository. Adding Capacitor Android..."
+            npx cap add android
+          elif [ ! -f "android/gradlew" ]; then
+            echo "::notice::Android directory found but gradlew is missing. Re-adding Android platform..."
+            rm -rf android
+            npx cap add android
+          fi
+
+          # Ensure camera, flashlight, and media permissions exist in AndroidManifest.xml
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ] && ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
+            echo "⚡ Injecting Android capture permissions into $MANIFEST..."
+            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n    <uses-permission android:name="android.permission.FLASHLIGHT" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.VIBRATE" />' "$MANIFEST"
+          fi
+
+          echo "⚡ Syncing web assets to Capacitor Android..."
           npx cap sync android
 
       - name: 6. Set up Java JDK 21 (Temurin)
@@ -67,7 +84,17 @@ jobs:
 
       - name: 9. Grant Execute Permission to Gradle Wrapper
         run: |
-          chmod +x android/gradlew
+          if [ ! -f "android/gradlew" ]; then
+            echo "::warning::gradlew not found. Running gradle wrapper..."
+            (cd android && gradle wrapper) || true
+          fi
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          else
+            echo "❌ Fatal: gradlew could not be located or generated in android directory."
+            ls -la android || true
+            exit 1
+          fi
 
       - name: 10. Build Android APK with Gradle
         run: |
