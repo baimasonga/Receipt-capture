@@ -676,15 +676,18 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Set up Node.js 20.x
+      - name: 2. Set up Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: 3. Install Dependencies & Build Web Assets
         run: |
-          npm ci || npm install
+          if [ -f "package-lock.json" ]; then
+            npm ci || npm install --no-audit
+          else
+            npm install --no-audit
+          fi
           npm run build
 
       - name: 4. Sync Capacitor Android Project
@@ -696,7 +699,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
       - name: 6. Set up Android SDK
         uses: android-actions/setup-android@v3
