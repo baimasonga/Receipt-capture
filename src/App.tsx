@@ -10,7 +10,9 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { StudentPortalView } from './components/StudentPortalView';
 import { AuditTrailView } from './components/AuditTrailView';
 import { AlertCenterModal } from './components/AlertCenterModal';
-import { MobileFrame } from './components/MobileFrame';
+import { AndroidApp } from './components/AndroidApp';
+import { DualAppSwitcherBar } from './components/DualAppSwitcherBar';
+import { GitHubBuildModal } from './components/GitHubBuildModal';
 import { ReceiptData, StudentAccount, AuditLogEntry, NotificationPayload } from './types';
 import { UniversityLedgerManager, INITIAL_STUDENTS } from './utils/bankLedger';
 import { SAMPLE_RECEIPTS } from './data/sampleReceipts';
@@ -19,12 +21,12 @@ import { computeSHA256 } from './utils/crypto';
 export default function App() {
   const ledgerManager = UniversityLedgerManager.getInstance();
 
-  // App Global State
+  // App Global State - Distinct Standalone Application Environments
+  const [appPlatform, setAppPlatform] = useState<'ANDROID_APP' | 'WEB_APP'>('ANDROID_APP');
   const [activeRole, setActiveRole] = useState<'BURSAR' | 'AUDITOR' | 'STUDENT'>('BURSAR');
   const [isOffline, setIsOffline] = useState<boolean>(false);
-  const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
+  const [mobileViewMode, setMobileViewMode] = useState<'DEVICE_SHELL' | 'FULL_SCREEN'>('DEVICE_SHELL');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [mobileTab, setMobileTab] = useState<'HOME' | 'SCAN' | 'HISTORY' | 'ALERTS'>('HOME');
 
   // Core Data
   const [students, setStudents] = useState<StudentAccount[]>([]);
@@ -37,6 +39,7 @@ export default function App() {
   // Modals
   const [reviewReceipt, setReviewReceipt] = useState<Partial<ReceiptData> | null>(null);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState<boolean>(false);
+  const [isGitHubBuildModalOpen, setIsGitHubBuildModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Initialize data and seed initial receipts if empty
@@ -293,6 +296,55 @@ export default function App() {
     showToast(`Dispatched ${payload.channel} alert to ${payload.studentName}!`);
   };
 
+  // CRUD Handler: Create Manual Receipt (Voucher / Bank Draft)
+  const handleCreateManualReceipt = async (data: Omit<ReceiptData, 'id' | 'auditChecksum'>) => {
+    const created = await ledgerManager.createManualReceipt(
+      data,
+      activeRole === 'BURSAR' ? 'Bursar Director' : 'Bursary Web Desk'
+    );
+    setReceipts(ledgerManager.getReceipts());
+    setStudents(ledgerManager.getStudents());
+    setAuditLogs(ledgerManager.getAuditLogs());
+    setNotifications(ledgerManager.getNotifications());
+    showToast(`Manual receipt #${created.transactionRef} ($${created.amount.toFixed(2)}) committed to Institutional Ledger!`);
+  };
+
+  // CRUD Handler: Update Receipt
+  const handleUpdateReceipt = async (updated: ReceiptData) => {
+    await ledgerManager.updateReceipt(
+      updated,
+      activeRole === 'BURSAR' ? 'Bursar Director' : 'Auditor Terminal'
+    );
+    setReceipts(ledgerManager.getReceipts());
+    setStudents(ledgerManager.getStudents());
+    setAuditLogs(ledgerManager.getAuditLogs());
+    showToast(`Receipt #${updated.transactionRef} updated in Institutional Ledger.`);
+  };
+
+  // CRUD Handler: Delete/Void Receipt
+  const handleDeleteReceipt = async (receiptId: string, reason: string) => {
+    await ledgerManager.deleteReceipt(
+      receiptId,
+      activeRole === 'BURSAR' ? 'Bursar Director' : 'Auditor Terminal',
+      reason
+    );
+    setReceipts(ledgerManager.getReceipts());
+    setStudents(ledgerManager.getStudents());
+    setAuditLogs(ledgerManager.getAuditLogs());
+    showToast(`Receipt record voided and student tuition balance safely updated.`);
+  };
+
+  // CRUD Handler: Update Student Profile & Tuition Schedule
+  const handleUpdateStudentAccount = async (student: StudentAccount) => {
+    await ledgerManager.updateStudentAccount(student, 'Bursary Admin');
+    setStudents(ledgerManager.getStudents());
+    setAuditLogs(ledgerManager.getAuditLogs());
+    if (selectedStudent.studentId === student.studentId) {
+      setSelectedStudent(student);
+    }
+    showToast(`Student profile for ${student.fullName} (${student.studentId}) updated.`);
+  };
+
   // Render view content based on activeRole or mobileTab
   const renderMainContent = () => {
     if (activeRole === 'STUDENT') {
@@ -302,10 +354,7 @@ export default function App() {
             student={selectedStudent}
             receipts={receipts}
             onOpenScanner={() => {
-              if (isMobileFrame) setMobileTab('SCAN');
-              else {
-                window.scrollTo({ top: 400, behavior: 'smooth' });
-              }
+              window.scrollTo({ top: 400, behavior: 'smooth' });
             }}
             onViewReceiptDetail={(rec) => setReviewReceipt(rec)}
             onOpenAlerts={() => setIsAlertModalOpen(true)}
@@ -344,36 +393,26 @@ export default function App() {
             setSelectedStudent(st);
             setIsAlertModalOpen(true);
           }}
+          onCreateReceipt={handleCreateManualReceipt}
+          onUpdateReceipt={handleUpdateReceipt}
+          onDeleteReceipt={handleDeleteReceipt}
+          onUpdateStudent={handleUpdateStudentAccount}
         />
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-slate-950 text-slate-900 flex flex-col font-sans antialiased">
       
-      {/* Universal Header */}
-      <Header
-        activeRole={activeRole}
-        onRoleChange={setActiveRole}
+      {/* Top-Level Master Application Switcher (Explicit Separation between Android and Web App) */}
+      <DualAppSwitcherBar
+        currentApp={appPlatform}
+        onSwitchApp={setAppPlatform}
         isOffline={isOffline}
-        onToggleOffline={() => {
-          const next = !isOffline;
-          setIsOffline(next);
-          if (!next && offlineQueue.length > 0) {
-            handleSyncOfflineQueue();
-          }
-        }}
-        isMobileFrame={isMobileFrame}
-        onToggleMobileFrame={() => setIsMobileFrame(!isMobileFrame)}
         offlineQueueCount={offlineQueue.length}
-        onSyncOfflineQueue={handleSyncOfflineQueue}
-        isSyncing={isSyncing}
-        students={students}
-        selectedStudent={selectedStudent}
-        onSelectStudent={setSelectedStudent}
-        onOpenNotifications={() => setIsAlertModalOpen(true)}
-        unreadNotificationsCount={notifications.length}
+        totalReceiptsCount={receipts.length}
+        onOpenGitHubBuildModal={() => setIsGitHubBuildModalOpen(true)}
       />
 
       {/* Floating Global Toast Notification */}
@@ -384,36 +423,82 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area: Switch between Desktop View and Mobile Frame */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        {isMobileFrame ? (
-          <MobileFrame
-            onExitMobile={() => setIsMobileFrame(false)}
-            activeTab={mobileTab}
-            onChangeTab={(t) => {
-              setMobileTab(t);
-              if (t === 'ALERTS') setIsAlertModalOpen(true);
+      {/* SEPARATED APP 1: PURE ANDROID MOBILE APPLICATION */}
+      {appPlatform === 'ANDROID_APP' && (
+        <main className="flex-1 w-full bg-slate-950 flex flex-col items-center justify-center p-0">
+          <AndroidApp
+            students={students}
+            selectedStudent={selectedStudent}
+            onSelectStudent={setSelectedStudent}
+            receipts={receipts}
+            onCommitReceipt={handleCommitReceipt}
+            onInspectReceipt={(rec) => setReviewReceipt(rec)}
+            isOffline={isOffline}
+            onToggleOffline={() => {
+              const next = !isOffline;
+              setIsOffline(next);
+              if (!next && offlineQueue.length > 0) {
+                handleSyncOfflineQueue();
+              }
             }}
-          >
-            {mobileTab === 'SCAN' ? (
-              <ReceiptScanner
-                onScanComplete={handleScanComplete}
-                isOffline={isOffline}
-              />
-            ) : (
-              <StudentPortalView
-                student={selectedStudent}
-                receipts={receipts}
-                onOpenScanner={() => setMobileTab('SCAN')}
-                onViewReceiptDetail={(rec) => setReviewReceipt(rec)}
-                onOpenAlerts={() => setIsAlertModalOpen(true)}
-              />
-            )}
-          </MobileFrame>
-        ) : (
-          renderMainContent()
-        )}
-      </main>
+            offlineQueueCount={offlineQueue.length}
+            onSyncOfflineQueue={handleSyncOfflineQueue}
+            isSyncing={isSyncing}
+            notifications={notifications}
+            onDispatchNotification={handleDispatchNotification}
+            onSwitchToWebDashboard={() => setAppPlatform('WEB_APP')}
+            viewMode={mobileViewMode}
+            onToggleViewMode={() => setMobileViewMode(mobileViewMode === 'DEVICE_SHELL' ? 'FULL_SCREEN' : 'DEVICE_SHELL')}
+            onOpenGitHubBuildModal={() => setIsGitHubBuildModalOpen(true)}
+          />
+        </main>
+      )}
+
+      {/* SEPARATED APP 2: BURSARY DESKTOP WEB RECONCILIATION & AUDIT SUITE */}
+      {appPlatform === 'WEB_APP' && (
+        <div className="flex-1 w-full flex flex-col bg-slate-100">
+          {/* Institutional Web Header with Role Switchers and Direct Android Launch Action */}
+          <Header
+            activeRole={activeRole}
+            onRoleChange={setActiveRole}
+            isOffline={isOffline}
+            onToggleOffline={() => {
+              const next = !isOffline;
+              setIsOffline(next);
+              if (!next && offlineQueue.length > 0) {
+                handleSyncOfflineQueue();
+              }
+            }}
+            onSwitchToAndroidApp={() => setAppPlatform('ANDROID_APP')}
+            onOpenGitHubBuildModal={() => setIsGitHubBuildModalOpen(true)}
+            offlineQueueCount={offlineQueue.length}
+            onSyncOfflineQueue={handleSyncOfflineQueue}
+            isSyncing={isSyncing}
+            students={students}
+            selectedStudent={selectedStudent}
+            onSelectStudent={setSelectedStudent}
+            onOpenNotifications={() => setIsAlertModalOpen(true)}
+            unreadNotificationsCount={notifications.length}
+          />
+
+          {/* Web Main Content */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+            {renderMainContent()}
+          </main>
+
+          {/* Web Institutional Footer */}
+          <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 py-6 text-xs text-center">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div>
+                <strong>Metropolitan University Directorate of Bursary &amp; Internal Audit</strong> • All Financial Transactions Encrypted (AES-256-GCM / SHA-256)
+              </div>
+              <div className="font-mono text-slate-500 text-[11px]">
+                Interbank API Switch Status: CONNECTED • Peak Enrollment Accelerated
+              </div>
+            </div>
+          </footer>
+        </div>
+      )}
 
       {/* Side-by-Side OCR Extraction Review Modal */}
       {reviewReceipt && (
@@ -434,17 +519,11 @@ export default function App() {
         onDispatchAlert={handleDispatchNotification}
       />
 
-      {/* Institutional Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 py-6 text-xs text-center">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div>
-            <strong>Metropolitan University Directorate of Bursary &amp; Internal Audit</strong> • All Financial Transactions Encrypted (AES-256-GCM / SHA-256)
-          </div>
-          <div className="font-mono text-slate-500 text-[11px]">
-            Interbank API Switch Status: CONNECTED • Peak Enrollment Accelerated
-          </div>
-        </div>
-      </footer>
+      {/* GitHub Actions Mobile APK Build & Phone Download Modal */}
+      <GitHubBuildModal
+        isOpen={isGitHubBuildModalOpen}
+        onClose={() => setIsGitHubBuildModalOpen(false)}
+      />
 
     </div>
   );

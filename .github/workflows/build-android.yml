@@ -1,0 +1,112 @@
+name: Build Android Mobile APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 2. Set up Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Install NPM Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: 4. Build Vite Web Assets
+        run: |
+          npm run build
+
+      - name: 5. Sync Capacitor Android Platform
+        run: |
+          npx cap sync android
+
+      - name: 6. Set up Java JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: 7. Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - name: 8. Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: 9. Grant Execute Permission to Gradle Wrapper
+        run: |
+          chmod +x android/gradlew
+
+      - name: 10. Build Android APK with Gradle
+        run: |
+          cd android
+          if [ "${{ github.event.inputs.build_type }}" == "release" ]; then
+            echo "Building Release APK..."
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            echo "Building Debug APK (ready to install)..."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: 11. Prepare Artifacts & Calculate SHA-256
+        run: |
+          mkdir -p build-artifacts
+          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk build-artifacts/uniaudit-mobile-debug.apk
+            sha256sum build-artifacts/uniaudit-mobile-debug.apk > build-artifacts/uniaudit-mobile-debug.apk.sha256
+          fi
+          if [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk build-artifacts/uniaudit-mobile-release-unsigned.apk
+            sha256sum build-artifacts/uniaudit-mobile-release-unsigned.apk > build-artifacts/uniaudit-mobile-release-unsigned.apk.sha256
+          fi
+          ls -la build-artifacts/
+
+      - name: 12. Upload Android APK Artifact to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniAudit-Android-APK
+          path: build-artifacts/
+          retention-days: 30
+
+      - name: 13. Create GitHub Release (On Tag Push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build-artifacts/uniaudit-mobile-debug.apk
+            build-artifacts/uniaudit-mobile-debug.apk.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

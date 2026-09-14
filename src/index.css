@@ -1,1 +1,70 @@
 @import "tailwindcss";
+
+@keyframes afContract {
+  0% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 1;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1.06);
+    opacity: 1;
+  }
+  90% {
+    transform: translate(-50%, -50%) scale(0.98);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes afPingRing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.7);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes afLockFlash {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(52, 211, 153, 0.9));
+  }
+  30% {
+    opacity: 0.4;
+    filter: drop-shadow(0 0 2px rgba(52, 211, 153, 0.4));
+  }
+  60% {
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(52, 211, 153, 1));
+  }
+}
+
+.animate-af-contract {
+  animation: afContract 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-af-ping {
+  animation: afPingRing 0.7s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+.animate-af-lock {
+  animation: afLockFlash 0.45s ease-in-out forwards;
+}

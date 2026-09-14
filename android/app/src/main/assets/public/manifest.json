@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "UniAudit Mobile - Bank Receipt OCR",
+  "short_name": "UniAudit",
+  "description": "Complete Android application for bank payment receipt OCR, teller stamp verification, digital exam pass clearance, and bursary audit reconciliation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["finance", "education", "productivity"]
+}

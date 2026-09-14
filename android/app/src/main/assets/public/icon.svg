@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="#020617" />
+  <circle cx="256" cy="256" r="210" fill="url(#shieldGrad)" stroke="#334155" stroke-width="8" />
+  <!-- University Pillar & Shield -->
+  <path d="M256 80 L390 140 L390 270 C390 350 256 420 256 420 C256 420 122 350 122 270 L122 140 Z" fill="url(#grad)" opacity="0.95" />
+  <!-- Receipt / Document Overlay -->
+  <rect x="186" y="150" width="140" height="180" rx="14" fill="#ffffff" filter="drop-shadow(0 10px 20px rgba(0,0,0,0.3))" />
+  <line x1="214" y1="185" x2="298" y2="185" stroke="#059669" stroke-width="8" stroke-linecap="round" />
+  <line x1="214" y1="215" x2="280" y2="215" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+  <line x1="214" y1="245" x2="290" y2="245" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+  <line x1="214" y1="275" x2="260" y2="275" stroke="#64748b" stroke-width="6" stroke-linecap="round" />
+  <!-- Stamp / Verified Checkmark Circle -->
+  <circle cx="310" cy="310" r="42" fill="#059669" stroke="#ffffff" stroke-width="6" />
+  <path d="M294 310 L305 321 L328 298" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

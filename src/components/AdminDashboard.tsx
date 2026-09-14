@@ -23,10 +23,18 @@ import {
   User,
   Hash,
   SlidersHorizontal,
-  CalendarDays
+  CalendarDays,
+  PlusCircle,
+  Edit3,
+  Trash2,
+  Users
 } from 'lucide-react';
 import { ReceiptData, StudentAccount } from '../types';
 import { OcrQualityChart } from './OcrQualityChart';
+import { CreateReceiptModal } from './CreateReceiptModal';
+import { EditReceiptModal } from './EditReceiptModal';
+import { DeleteReceiptModal } from './DeleteReceiptModal';
+import { StudentManagerModal } from './StudentManagerModal';
 
 interface AdminDashboardProps {
   receipts: ReceiptData[];
@@ -34,6 +42,10 @@ interface AdminDashboardProps {
   onInspectReceipt: (receipt: ReceiptData) => void;
   onSendAlert: (receipt: ReceiptData) => void;
   onBatchReconcileAll?: () => void;
+  onCreateReceipt?: (receipt: Omit<ReceiptData, 'id' | 'auditChecksum'>) => Promise<void>;
+  onUpdateReceipt?: (receipt: ReceiptData) => Promise<void>;
+  onDeleteReceipt?: (receiptId: string, reason: string) => Promise<void>;
+  onUpdateStudent?: (student: StudentAccount) => Promise<void>;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -42,6 +54,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onInspectReceipt,
   onSendAlert,
   onBatchReconcileAll,
+  onCreateReceipt,
+  onUpdateReceipt,
+  onDeleteReceipt,
+  onUpdateStudent,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [studentNameFilter, setStudentNameFilter] = useState('');
@@ -51,6 +67,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [datePreset, setDatePreset] = useState<'ALL' | 'JAN_2025' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'SESSION_24_25' | 'CUSTOM'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'RECONCILED' | 'PENDING_AUDIT' | 'FLAGGED'>('ALL');
   const [facultyFilter, setFacultyFilter] = useState<string>('ALL');
+
+  // CRUD Modals State
+  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+  const [editingReceipt, setEditingReceipt] = useState<ReceiptData | null>(null);
+  const [deletingReceipt, setDeletingReceipt] = useState<ReceiptData | null>(null);
+  const [isStudentManagerOpen, setIsStudentManagerOpen] = useState<boolean>(false);
 
   // Helper to normalize receipt date strings for comparison (YYYY-MM-DD)
   const normalizeDate = (dateStr?: string): string => {
@@ -382,7 +404,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+              {/* Add Record (CRUD - Create) */}
+              <button
+                id="btn-open-create-receipt"
+                type="button"
+                onClick={() => setIsCreateOpen(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-xs transition"
+                title="Add Direct Receipt Record (CRUD - Create)"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Add Record</span>
+              </button>
+
+              {/* Students Directory (CRUD - Student Accounts) */}
+              <button
+                id="btn-open-student-directory"
+                type="button"
+                onClick={() => setIsStudentManagerOpen(true)}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 hover:bg-purple-100 text-xs font-bold text-purple-700 shadow-xs transition"
+                title="View & Edit Student Tuition Accounts (CRUD)"
+              >
+                <Users className="w-3.5 h-3.5 text-purple-600" />
+                <span>Students ({students.length})</span>
+              </button>
+
               {hasActiveFilters && (
                 <button
                   id="btn-reset-filters-top"
@@ -817,15 +863,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </span>
                       </td>
 
-                      {/* Action buttons */}
+                      {/* Action buttons (CRUD - Read, Update, Delete) */}
                       <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                         <button
                           id={`btn-inspect-receipt-${r.id}`}
                           onClick={() => onInspectReceipt(r)}
                           className="p-1.5 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
-                          title="Inspect Optical Slip & Audit Hash"
+                          title="Inspect Optical Slip & Audit Hash (Read)"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          id={`btn-edit-receipt-${r.id}`}
+                          onClick={() => setEditingReceipt(r)}
+                          className="p-1.5 rounded text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 transition"
+                          title="Edit Record (CRUD - Update)"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          id={`btn-delete-receipt-${r.id}`}
+                          onClick={() => setDeletingReceipt(r)}
+                          className="p-1.5 rounded text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
+                          title="Void / Delete Ledger Record (CRUD - Delete)"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                         <button
                           id={`btn-send-alert-${r.id}`}
@@ -845,6 +907,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </table>
         </div>
       </div>
+
+      {/* CRUD Modals */}
+      {isCreateOpen && onCreateReceipt && (
+        <CreateReceiptModal
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          students={students}
+          onCreate={onCreateReceipt}
+        />
+      )}
+
+      {editingReceipt && onUpdateReceipt && (
+        <EditReceiptModal
+          isOpen={!!editingReceipt}
+          receipt={editingReceipt}
+          onClose={() => setEditingReceipt(null)}
+          onUpdate={onUpdateReceipt}
+        />
+      )}
+
+      {deletingReceipt && onDeleteReceipt && (
+        <DeleteReceiptModal
+          isOpen={!!deletingReceipt}
+          receipt={deletingReceipt}
+          onClose={() => setDeletingReceipt(null)}
+          onConfirmDelete={onDeleteReceipt}
+        />
+      )}
+
+      {isStudentManagerOpen && onUpdateStudent && (
+        <StudentManagerModal
+          isOpen={isStudentManagerOpen}
+          onClose={() => setIsStudentManagerOpen(false)}
+          students={students}
+          onSaveStudent={onUpdateStudent}
+        />
+      )}
 
     </div>
   );

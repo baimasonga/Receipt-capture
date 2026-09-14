@@ -462,4 +462,138 @@ export class UniversityLedgerManager {
       notifications,
     };
   }
+
+  // UPDATE: Edit an existing receipt in the Ledger (CRUD - Update)
+  public async updateReceipt(updatedReceipt: ReceiptData, actor: string = 'Bursary Admin'): Promise<ReceiptData> {
+    const receipts = this.getReceipts();
+    const idx = receipts.findIndex(r => r.id === updatedReceipt.id);
+    if (idx === -1) {
+      throw new Error(`Receipt #${updatedReceipt.id} not found in database.`);
+    }
+
+    const oldReceipt = receipts[idx];
+    receipts[idx] = {
+      ...updatedReceipt,
+      verifiedBy: actor,
+    };
+    this.saveReceipts(receipts);
+
+    // If amount changed and was reconciled, adjust student account
+    if (oldReceipt.reconciliationStatus === 'RECONCILED' && oldReceipt.amount !== updatedReceipt.amount) {
+      const amountDiff = updatedReceipt.amount - oldReceipt.amount;
+      const students = this.getStudents();
+      const sIdx = students.findIndex(s => s.studentId.toUpperCase() === updatedReceipt.studentId.toUpperCase());
+      if (sIdx >= 0) {
+        const student = students[sIdx];
+        const newPaid = Math.max(0, student.totalPaid + amountDiff);
+        const newBal = Math.max(0, student.totalTuitionBilled - newPaid);
+        students[sIdx] = {
+          ...student,
+          totalPaid: newPaid,
+          outstandingBalance: newBal,
+          status: newBal <= 0 ? 'CLEARED' : newPaid > 0 ? 'PARTIAL' : 'OVERDUE',
+        };
+        this.saveStudents(students);
+      }
+    }
+
+    await this.appendAuditLog({
+      timestamp: new Date().toISOString(),
+      actor,
+      role: 'BURSAR',
+      action: 'LEDGER_RECORD_UPDATED',
+      details: `Updated Receipt #${updatedReceipt.transactionRef} (${updatedReceipt.studentName}). Modified fields saved with cryptographic tracking.`,
+      receiptId: updatedReceipt.id,
+      studentId: updatedReceipt.studentId,
+      ipAddress: '10.204.14.88 (Bursary Web Terminal)',
+    });
+
+    return receipts[idx];
+  }
+
+  // DELETE: Void or delete a receipt from the ledger (CRUD - Delete)
+  public async deleteReceipt(receiptId: string, actor: string = 'Bursary Admin', reason: string = 'Administrative cancellation / corrupted voucher'): Promise<boolean> {
+    const receipts = this.getReceipts();
+    const idx = receipts.findIndex(r => r.id === receiptId);
+    if (idx === -1) return false;
+
+    const receipt = receipts[idx];
+
+    // Rollback student paid amount if was reconciled
+    if (receipt.reconciliationStatus === 'RECONCILED') {
+      const students = this.getStudents();
+      const sIdx = students.findIndex(s => s.studentId.toUpperCase() === receipt.studentId.toUpperCase());
+      if (sIdx >= 0) {
+        const student = students[sIdx];
+        const newPaid = Math.max(0, student.totalPaid - receipt.amount);
+        const newBal = Math.max(0, student.totalTuitionBilled - newPaid);
+        students[sIdx] = {
+          ...student,
+          totalPaid: newPaid,
+          outstandingBalance: newBal,
+          status: newBal <= 0 ? 'CLEARED' : newPaid > 0 ? 'PARTIAL' : 'OVERDUE',
+          receipts: student.receipts.filter(id => id !== receiptId),
+        };
+        this.saveStudents(students);
+      }
+    }
+
+    receipts.splice(idx, 1);
+    this.saveReceipts(receipts);
+
+    await this.appendAuditLog({
+      timestamp: new Date().toISOString(),
+      actor,
+      role: 'BURSAR',
+      action: 'LEDGER_RECORD_DELETED',
+      details: `Voided/Deleted Receipt #${receipt.transactionRef} ($${receipt.amount.toFixed(2)}) for student ${receipt.studentId}. Reason: ${reason}`,
+      receiptId,
+      studentId: receipt.studentId,
+      ipAddress: '10.204.14.88 (Bursary Web Terminal)',
+    });
+
+    return true;
+  }
+
+  // CREATE: Add a manual receipt entry without OCR (CRUD - Create)
+  public async createManualReceipt(data: Omit<ReceiptData, 'id' | 'auditChecksum'>, actor: string = 'Bursary Admin'): Promise<ReceiptData> {
+    const id = `REC-MAN-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const rawData = `${id}|${data.studentId}|${data.amount}|${data.transactionRef}|${data.paymentDate}`;
+    const auditChecksum = await computeSHA256(rawData);
+
+    const fullReceipt: ReceiptData = {
+      ...data,
+      id,
+      auditChecksum,
+      syncStatus: 'SYNCED',
+      isEncryptedInCloud: true,
+      verifiedBy: actor,
+    };
+
+    return (await this.reconcileAndCommit(fullReceipt, actor)).receipt;
+  }
+
+  // Student Account CRUD: Update student billing or profile
+  public async updateStudentAccount(updated: StudentAccount, actor: string = 'Bursary Admin'): Promise<StudentAccount> {
+    const students = this.getStudents();
+    const idx = students.findIndex(s => s.studentId === updated.studentId);
+    if (idx === -1) {
+      students.push(updated);
+    } else {
+      students[idx] = updated;
+    }
+    this.saveStudents(students);
+
+    await this.appendAuditLog({
+      timestamp: new Date().toISOString(),
+      actor,
+      role: 'BURSAR',
+      action: 'STUDENT_LEDGER_MODIFIED',
+      details: `Updated financial profile for ${updated.fullName} (${updated.studentId}). Billed: $${updated.totalTuitionBilled.toFixed(2)}, Paid: $${updated.totalPaid.toFixed(2)}, Status: ${updated.status}.`,
+      studentId: updated.studentId,
+      ipAddress: '10.204.14.88 (Bursary Web Terminal)',
+    });
+
+    return updated;
+  }
 }

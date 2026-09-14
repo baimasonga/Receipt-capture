@@ -11,7 +11,9 @@ import {
   UserCheck, 
   FileText,
   Clock,
-  Layers
+  Layers,
+  Download,
+  Github
 } from 'lucide-react';
 import { StudentAccount } from '../types';
 
@@ -20,8 +22,8 @@ interface HeaderProps {
   onRoleChange: (role: 'BURSAR' | 'AUDITOR' | 'STUDENT') => void;
   isOffline: boolean;
   onToggleOffline: () => void;
-  isMobileFrame: boolean;
-  onToggleMobileFrame: () => void;
+  onSwitchToAndroidApp: () => void;
+  onOpenGitHubBuildModal?: () => void;
   offlineQueueCount: number;
   onSyncOfflineQueue: () => void;
   isSyncing: boolean;
@@ -37,8 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
   onRoleChange,
   isOffline,
   onToggleOffline,
-  isMobileFrame,
-  onToggleMobileFrame,
+  onSwitchToAndroidApp,
+  onOpenGitHubBuildModal,
   offlineQueueCount,
   onSyncOfflineQueue,
   isSyncing,
@@ -49,27 +51,55 @@ export const Header: React.FC<HeaderProps> = ({
   unreadNotificationsCount,
 }) => {
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-40 shadow-md">
+    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-10 z-40 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & University Brand */}
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-900/30">
+            <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-900/30">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-base sm:text-lg tracking-tight text-slate-100">
-                  UniAudit
+                  UniAudit Web Portal
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  OCR Reconciler
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  Bursary Management
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Metropolitan University Bursary &amp; Interbank Ledger Audit
+                Metropolitan University Bursary, CRUD Ledger &amp; Financial Audit
               </p>
             </div>
+          </div>
+
+          {/* Action to Switch to Android Mobile Field App & APK Builder */}
+          <div className="flex items-center space-x-2">
+            <button
+              id="btn-switch-to-android-app"
+              onClick={onSwitchToAndroidApp}
+              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md border border-emerald-400/40 group"
+              title="Launch standalone Google Android Mobile App (Optical Field Scanner & Slip Ingestion)"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform" />
+              <span>Launch Android App</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-900/80 font-mono text-emerald-200 hidden md:inline">
+                Field OCR Terminal
+              </span>
+            </button>
+
+            {onOpenGitHubBuildModal && (
+              <button
+                id="btn-header-build-apk"
+                onClick={onOpenGitHubBuildModal}
+                className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition shadow-sm"
+                title="Build and download native Android APK via GitHub Actions"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Build APK (GitHub Actions)</span>
+              </button>
+            )}
           </div>
 
           {/* Right Action Controls */}
@@ -112,30 +142,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
             </div>
-
-            {/* Mobile View Toggle */}
-            <button
-              id="btn-toggle-mobile-frame"
-              onClick={onToggleMobileFrame}
-              title={isMobileFrame ? 'Exit Mobile Frame Preview' : 'Preview Mobile App (Android/iOS)'}
-              className={`flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors border ${
-                isMobileFrame
-                  ? 'bg-indigo-900/80 border-indigo-500 text-indigo-200'
-                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
-              }`}
-            >
-              {isMobileFrame ? (
-                <>
-                  <Monitor className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="hidden sm:inline">Desktop View</span>
-                </>
-              ) : (
-                <>
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="hidden sm:inline">Mobile App View</span>
-                </>
-              )}
-            </button>
 
             {/* Notifications Button */}
             <button

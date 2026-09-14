@@ -1,6 +1,6 @@
 {
   "name": "University Receipt OCR & Financial Audit Portal",
-  "description": "Automated bank payment receipt OCR, interbank transaction validation, project expense categorization, student WhatsApp/email alerts, and bursary audit reconciliation.",
+  "description": "Complete Android mobile application for bank payment receipt OCR, teller stamp verification, digital exam pass clearance, and bursary audit reconciliation.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
